@@ -78,24 +78,12 @@ tbody tr:hover { background:#1d1d1d; }
 tbody tr:last-child { border-bottom:none; }
 td { padding:7px 11px;font-size:13px;vertical-align:top; }
 
-.tee-times { display:flex;flex-direction:column;gap:2px; }
-.tee-time-row { display:flex;gap:6px;align-items:center; }
-.tee-round { font-size:10px;color:#555;min-width:22px;text-transform:uppercase; }
-.tee-val { font-family:monospace;font-size:12px;color:#e0e0e0; }
-
-.obj-pairs { display:flex;flex-wrap:wrap;gap:4px; }
-.obj-pair { background:#222;border-radius:4px;padding:2px 6px;font-size:11px;font-family:monospace; }
-.obj-key { color:#666; }
-.obj-val { color:#b0c4b0; }
-
-.arr-list { display:flex;flex-wrap:wrap;gap:4px; }
-.arr-item { background:#1e2a1e;border:1px solid #2a3a2a;border-radius:4px;padding:2px 6px;font-size:11px;font-family:monospace;color:#7ec87e; }
-
 .badge { padding:2px 7px;border-radius:4px;font-size:12px;font-family:monospace;white-space:nowrap; }
 .badge.green { background:rgba(74,222,128,.13);color:#4ade80; }
 .badge.amber { background:rgba(251,191,36,.12);color:#fbbf24; }
+.badge.blue  { background:rgba(96,165,250,.12);color:#60a5fa; }
 .badge.red   { background:rgba(248,113,113,.1);color:#f87171; }
-.badge.gray  { background:#222;color:#666; }
+.badge.gray  { background:#222;color:#888; }
 .mono { font-family:monospace;font-size:12px; }
 .muted { color:#555; }
 
@@ -110,6 +98,7 @@ td { padding:7px 11px;font-size:13px;vertical-align:top; }
 .spinner { width:26px;height:26px;border:2px solid #252525;border-top-color:#4ade80;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 10px; }
 @keyframes spin{to{transform:rotate(360deg)}}
 .err-box { background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.18);border-radius:7px;padding:12px 16px;color:#f87171;font-size:13px;margin-bottom:12px;font-family:monospace;white-space:pre-wrap;word-break:break-all; }
+.info-box { background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:7px;padding:14px 18px;font-size:13px;color:#fbbf24;margin-bottom:12px; }
 
 .raw-section { margin-bottom:12px; }
 .raw-section summary { cursor:pointer;padding:9px 14px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:7px;font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.5px;list-style:none; }
@@ -198,9 +187,11 @@ pre { background:#0a0a0a;border:1px solid #1e1e1e;border-top:none;border-radius:
 </div>
 
 <script>
+// ─── State ────────────────────────────────────────────────────────────────────
 let autoTimer = null, cdTimer = null, cdSecs = 0;
 const AUTO_SEC = 60;
 
+// ─── Nav ──────────────────────────────────────────────────────────────────────
 function switchTab(tab, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
@@ -214,64 +205,30 @@ function setStatus(msg, cls) {
   document.getElementById('dot').className = 'live-dot' + (cls === 'ok' ? ' on' : '');
 }
 
-function renderValue(v) {
-  if (v === null || v === undefined) return '<span class="muted">—</span>';
-  if (typeof v === 'string') return v === '' ? '<span class="muted">—</span>' : v;
-  if (typeof v === 'number') return `<span class="mono">${v}</span>`;
-  if (typeof v === 'boolean') return v ? '<span class="badge green">yes</span>' : '<span class="badge gray">no</span>';
-  if (Array.isArray(v)) {
-    if (v.length === 0) return '<span class="muted">—</span>';
-    if (typeof v[0] === 'object' && v[0] !== null) {
-      return '<div class="arr-list">' + v.map(item =>
-        '<span class="arr-item">' + Object.entries(item).map(([k2,v2]) =>
-          `<span class="obj-key">${k2}:</span><span class="obj-val">${v2}</span>`
-        ).join(' ') + '</span>'
-      ).join('') + '</div>';
-    }
-    return '<div class="arr-list">' + v.map(x => `<span class="arr-item">${x}</span>`).join('') + '</div>';
-  }
-  if (typeof v === 'object') {
-    const entries = Object.entries(v);
-    if (entries.length === 0) return '<span class="muted">—</span>';
-    const looksLikeTees = entries.every(([k]) => /^(r|round)[_\s]?\d$/i.test(k));
-    if (looksLikeTees) {
-      return '<div class="tee-times">' + entries.map(([k, val]) =>
-        `<div class="tee-time-row"><span class="tee-round">${k}</span><span class="tee-val">${val ?? '—'}</span></div>`
-      ).join('') + '</div>';
-    }
-    return '<div class="obj-pairs">' + entries.map(([k, val]) =>
-      `<span class="obj-pair"><span class="obj-key">${k}:</span> <span class="obj-val">${
-        val === null ? '—' : (typeof val === 'object' ? JSON.stringify(val) : val)
-      }</span></span>`
-    ).join('') + '</div>';
-  }
-  return String(v);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function spin(id)      { document.getElementById(id).innerHTML = '<div class="state-box"><div class="spinner"></div>Loading…</div>'; }
+function showErr(id,m) { document.getElementById(id).innerHTML = `<div class="err-box">✗ ${m}</div>`; }
+function showInfo(id,m){ document.getElementById(id).innerHTML = `<div class="info-box">ℹ ${m}</div>`; }
+
+function mkCards(items) {
+  if (!items.length) return '';
+  return '<div class="cards">' + items.map(([l,v,c]) =>
+    `<div class="card"><div class="card-label">${l}</div><div class="card-value ${c||''}">${v ?? '—'}</div></div>`
+  ).join('') + '</div>';
 }
 
-function buildTable(rows, id, title, meta) {
-  if (!rows || !rows.length) return '<div class="err-box">No data rows returned.</div>';
-  const keySet = new Set();
-  rows.forEach(r => Object.keys(r).forEach(k => keySet.add(k)));
-  const keys = [...keySet];
-  let h = `<div class="tbl-wrap">
-    <div class="tbl-head">
-      <span class="tbl-title">${title}</span>
-      <span class="tbl-meta">${meta || rows.length + ' rows'}</span>
-    </div>
-    <div class="tbl-scroll">
-    <table id="${id}"><thead><tr>`;
-  keys.forEach(k => h += `<th>${k}</th>`);
-  h += '</tr></thead><tbody>';
-  rows.forEach(r => {
-    h += '<tr>';
-    keys.forEach(k => h += `<td>${renderValue(r[k])}</td>`);
-    h += '</tr>';
-  });
-  return h + '</tbody></table></div></div>';
+function infoCards(d) {
+  const items = [];
+  if (d.event_name)        items.push(['Event',   d.event_name]);
+  if (d.course_name)       items.push(['Course',  d.course_name]);
+  if (d.last_round != null) items.push(['Round',  d.last_round]);
+  if (d.current_round != null) items.push(['Round', d.current_round]);
+  if (d.last_updated)      items.push(['Updated', d.last_updated]);
+  return mkCards(items);
 }
 
 function withSearch(inputId, tableId, html) {
-  return `<div class="search-wrap"><input class="search-input" id="${inputId}" placeholder="Search player or value…" oninput="filterTbl('${tableId}', this.value)"></div>` + html;
+  return `<div class="search-wrap"><input class="search-input" id="${inputId}" placeholder="Search…" oninput="filterTbl('${tableId}',this.value)"></div>` + html;
 }
 
 function filterTbl(tid, q) {
@@ -282,24 +239,7 @@ function filterTbl(tid, q) {
   });
 }
 
-function infoCards(d) {
-  const items = [];
-  if (d.event_name)        items.push(['Event',   d.event_name]);
-  if (d.course)            items.push(['Course',  d.course]);
-  if (d.last_round != null) items.push(['Round',  d.last_round]);
-  if (d.last_updated)      items.push(['Updated', d.last_updated]);
-  if (d.tour)              items.push(['Tour',    d.tour]);
-  return mkCards(items);
-}
-
-function mkCards(items) {
-  if (!items.length) return '';
-  return '<div class="cards">' + items.map(([l, v, c]) =>
-    `<div class="card"><div class="card-label">${l}</div><div class="card-value ${c||''}">${v ?? '—'}</div></div>`
-  ).join('') + '</div>';
-}
-
-async function apiFetch(endpoint, params = {}) {
+async function apiFetch(endpoint, params={}) {
   const qs = new URLSearchParams(params);
   const res = await fetch(`/api/${endpoint}?${qs}`);
   const json = await res.json();
@@ -307,35 +247,7 @@ async function apiFetch(endpoint, params = {}) {
   return json;
 }
 
-function spin(id) { document.getElementById(id).innerHTML = '<div class="state-box"><div class="spinner"></div>Loading…</div>'; }
-function showErr(id, msg) { document.getElementById(id).innerHTML = `<div class="err-box">✗ ${msg}</div>`; }
-
-function fmtOdds(v, fmt) {
-  if (v == null) return null;
-  if (fmt === 'american') return v > 0 ? `+${v}` : `${v}`;
-  if (fmt === 'decimal')  return parseFloat(v).toFixed(2);
-  if (fmt === 'percent')  return parseFloat(v).toFixed(1) + '%';
-  return v;
-}
-function probFmt(p, fmt) {
-  if (p == null) return '—';
-  if (fmt === 'percent') return (p * 100).toFixed(1) + '%';
-  if (fmt === 'decimal') return (1 / p).toFixed(2);
-  if (fmt === 'american') return p >= 0.5 ? '-' + Math.round(p/(1-p)*100) : '+' + Math.round((1-p)/p*100);
-  return (p * 100).toFixed(1) + '%';
-}
-
-function bookCols(obj, prefix) {
-  const skip = new Set(['dg_id','country','win','datagolf_win','datagolf_baseline',
-    'datagolf_baseline_history_fit','player_name','p1_player_name','p2_player_name',
-    'p3_player_name','p1_datagolf_win','p2_datagolf_win','p3_datagolf_win','tie']);
-  return Object.keys(obj)
-    .filter(k => !prefix || k.startsWith(prefix))
-    .map(k => prefix ? k.slice(prefix.length) : k)
-    .filter(k => !skip.has(k))
-    .filter(k => typeof obj[(prefix||'')+k] === 'number');
-}
-
+// ─── Load All ─────────────────────────────────────────────────────────────────
 async function loadAll() {
   const tour = document.getElementById('sel-tour').value;
   const fmt  = document.getElementById('sel-odds').value;
@@ -343,6 +255,7 @@ async function loadAll() {
   const btn  = document.getElementById('load-btn');
   btn.disabled = true; btn.textContent = 'Loading…';
   setStatus('Fetching…', 'loading');
+
   const results = await Promise.allSettled([
     doOutrights(tour, mkt, fmt),
     doMatchups(tour, 'tournament_matchups', fmt),
@@ -354,158 +267,465 @@ async function loadAll() {
     doRankings(),
     doSchedule(tour),
   ]);
+
   const errs = results.filter(r => r.status === 'rejected').length;
-  setStatus(`Updated ${new Date().toLocaleTimeString()}${errs ? ` · ${errs} endpoint(s) failed` : ''}`, errs ? 'loading' : 'ok');
+  setStatus(
+    `Updated ${new Date().toLocaleTimeString()}${errs ? ` · ${errs} endpoint(s) failed` : ''}`,
+    errs ? 'loading' : 'ok'
+  );
   btn.disabled = false; btn.textContent = '▶ Load Data';
 }
 
+// ─── OUTRIGHTS ────────────────────────────────────────────────────────────────
+// /betting-tools/outrights — required: market | optional: tour, odds_format
+// books in d.books_offering, odds are strings "+230", datagolf is nested object
 async function doOutrights(tour, market, fmt) {
   spin('tab-outrights');
   const d = await apiFetch('outrights', { tour, market, odds_format: fmt });
   document.getElementById('raw-outrights').textContent = JSON.stringify(d, null, 2);
+
   const players = d.odds || [];
   if (!players.length) { showErr('tab-outrights', 'No outright odds returned for this market/tour.'); return; }
-  const books = bookCols(players[0]);
+
+  const books = d.books_offering || [];
+
   let html = infoCards(d);
-  html += mkCards([['Players', players.length, 'green'],['Books', books.length],['Market', market],['Format', fmt]]);
-  html += `<div class="tbl-wrap"><div class="tbl-head"><span class="tbl-title">Outright Odds — ${market}</span><span class="tbl-meta">books: ${books.join(', ')} &nbsp;·&nbsp; <span style="color:#4ade80">■</span> = best price &nbsp;·&nbsp; amber = DG model</span></div><div class="tbl-scroll"><table id="out-tbl"><thead><tr><th>#</th><th>Player</th><th>Country</th><th>DG Model</th>`;
+  html += mkCards([
+    ['Event',   d.event_name || '—'],
+    ['Players', players.length, 'green'],
+    ['Books',   books.length],
+    ['Market',  market],
+    ['Updated', d.last_updated || '—'],
+  ]);
+
+  if (d.notes) html += `<div class="info-box">ℹ ${d.notes}</div>`;
+
+  html += `<div class="tbl-wrap"><div class="tbl-head">
+    <span class="tbl-title">Outright Odds — ${market}</span>
+    <span class="tbl-meta">books: ${books.join(', ')} &nbsp;·&nbsp; <span style="color:#4ade80">■</span> = best price &nbsp;·&nbsp; amber = DG model</span>
+  </div><div class="tbl-scroll"><table id="out-tbl"><thead><tr>
+    <th>#</th><th>Player</th><th>DG Model</th>`;
   books.forEach(b => html += `<th>${b}</th>`);
   html += `<th>Edge</th></tr></thead><tbody>`;
+
+  function parseAmerican(s) {
+    if (s == null) return null;
+    const n = parseInt(String(s).replace('+',''), 10);
+    return isNaN(n) ? null : n;
+  }
+  function toImplied(s) {
+    const n = parseAmerican(s);
+    if (n == null) return null;
+    return n > 0 ? 100/(n+100) : Math.abs(n)/(Math.abs(n)+100);
+  }
+
   players.forEach((p, i) => {
-    const model = p.datagolf_baseline_history_fit ?? p.datagolf_baseline;
+    const dg = p.datagolf || {};
+    const modelStr = dg.baseline_history_fit || dg.baseline || null;
+
     let bestBook = null, bestVal = null;
     books.forEach(b => {
-      const v = p[b]; if (v == null) return;
-      if (bestVal === null || (fmt === 'percent' ? v < bestVal : v > bestVal)) { bestVal = v; bestBook = b; }
+      const n = parseAmerican(p[b]); if (n == null) return;
+      if (bestVal === null || n > bestVal) { bestVal = n; bestBook = b; }
     });
+
     let edgeHtml = '<span class="muted">—</span>';
-    if (model != null && bestVal != null) {
-      let imp = fmt === 'percent' ? bestVal/100 : fmt === 'decimal' ? 1/bestVal : bestVal > 0 ? 100/(bestVal+100) : Math.abs(bestVal)/(Math.abs(bestVal)+100);
-      const e = ((model - imp) * 100).toFixed(1);
-      edgeHtml = parseFloat(e) > 0 ? `<span class="badge green">+${e}%</span>` : `<span class="mono muted">${e}%</span>`;
+    const modelImplied = toImplied(modelStr);
+    const bestImplied  = toImplied(p[bestBook]);
+    if (modelImplied != null && bestImplied != null) {
+      const e = ((modelImplied - bestImplied)*100).toFixed(1);
+      edgeHtml = parseFloat(e) > 0
+        ? `<span class="badge green">+${e}%</span>`
+        : `<span class="mono muted">${e}%</span>`;
     }
-    html += `<tr><td class="muted mono">${i+1}</td><td><strong>${p.player_name||'—'}</strong></td><td class="muted">${p.country||'—'}</td><td>${model != null ? `<span class="badge amber">${probFmt(model,fmt)}</span>` : '<span class="muted">—</span>'}</td>`;
+
+    html += `<tr>
+      <td class="muted mono">${i+1}</td>
+      <td><strong>${p.player_name||'—'}</strong></td>
+      <td>${modelStr ? `<span class="badge amber">${modelStr}</span>` : '<span class="muted">—</span>'}</td>`;
     books.forEach(b => {
       const v = p[b];
-      if (v == null) { html += `<td class="muted">—</td>`; return; }
-      html += b === bestBook ? `<td><span class="badge green">${fmtOdds(v,fmt)}</span></td>` : `<td class="mono">${fmtOdds(v,fmt)}</td>`;
+      if (!v) { html += `<td class="muted">—</td>`; return; }
+      html += b === bestBook
+        ? `<td><span class="badge green">${v}</span></td>`
+        : `<td class="mono">${v}</td>`;
     });
     html += `<td>${edgeHtml}</td></tr>`;
   });
+
   html += '</tbody></table></div></div>';
   document.getElementById('tab-outrights').innerHTML = withSearch('out-s','out-tbl', html);
-  document.getElementById('out-s').addEventListener('input', function() { filterTbl('out-tbl', this.value); });
+  document.getElementById('out-s').addEventListener('input', function(){ filterTbl('out-tbl',this.value); });
 }
 
+// ─── MATCHUPS / ROUND MATCHUPS / 3-BALLS ─────────────────────────────────────
+// /betting-tools/matchups — required: market
+// data in d.match_list (array or string), odds nested: row.odds.bookname.p1/p2/p3
 async function doMatchups(tour, market, fmt) {
-  const tabId = market === 'tournament_matchups' ? 'matchups' : market === 'round_matchups' ? 'round-matchups' : 'threeball';
+  const tabId = market === 'tournament_matchups' ? 'matchups'
+              : market === 'round_matchups'       ? 'round-matchups'
+              : 'threeball';
   spin('tab-' + tabId);
   const d = await apiFetch('matchups', { tour, market, odds_format: fmt });
   document.getElementById('raw-' + tabId).textContent = JSON.stringify(d, null, 2);
-  const rows = d.matchups || [];
-  if (!rows.length) { showErr('tab-'+tabId, `No ${market} data returned.`); return; }
+
+  if (typeof d.match_list === 'string' || !Array.isArray(d.match_list)) {
+    const msg = typeof d.match_list === 'string' ? d.match_list : `No ${market} data available right now.`;
+    document.getElementById('tab-'+tabId).innerHTML = infoCards(d) + `<div class="info-box">ℹ ${msg}</div>`;
+    return;
+  }
+
+  const rows = d.match_list;
   const nP = market === '3_balls' ? 3 : 2;
-  const books = bookCols(rows[0], 'p1_');
+  const bookSet = new Set();
+  rows.forEach(r => Object.keys(r.odds||{}).forEach(b => { if (b !== 'datagolf') bookSet.add(b); }));
+  const books = [...bookSet];
+
   let html = infoCards(d);
-  html += mkCards([['Event', d.event_name||'—'],['Rows', rows.length, 'green'],['Books', books.length]]);
-  html += `<div class="tbl-wrap"><div class="tbl-head"><span class="tbl-title">${market.replace(/_/g,' ')}</span><span class="tbl-meta">${rows.length} rows · books: ${books.join(', ')}</span></div><div class="tbl-scroll"><table id="${tabId}-tbl"><thead><tr>`;
-  for (let n=1; n<=nP; n++) { html += `<th>Player ${n}</th><th>DG Win%</th>`; books.forEach(b => html += `<th>${b} (P${n})</th>`); }
-  html += '</tr></thead><tbody>';
+  html += mkCards([
+    ['Event',  d.event_name||'—'],
+    ['Round',  d.round_num||'—'],
+    [market === '3_balls' ? '3-Balls' : 'Matchups', rows.length, 'green'],
+    ['Books',  books.length],
+  ]);
+
+  html += `<div class="tbl-wrap"><div class="tbl-head">
+    <span class="tbl-title">${market.replace(/_/g,' ')} — Round ${d.round_num||''}</span>
+    <span class="tbl-meta">${rows.length} rows · books: ${books.join(', ')}</span>
+  </div><div class="tbl-scroll"><table id="${tabId}-tbl"><thead><tr>`;
+
+  for (let n=1; n<=nP; n++) {
+    html += `<th>Player ${n}</th><th>DG</th>`;
+    books.forEach(b => html += `<th>${b}</th>`);
+    if (n < nP) html += `<th></th>`;
+  }
+  html += `<th>Ties</th></tr></thead><tbody>`;
+
   rows.forEach(row => {
     html += '<tr>';
     for (let n=1; n<=nP; n++) {
       const name = row[`p${n}_player_name`]||'—';
-      const dgw  = row[`p${n}_datagolf_win`];
-      html += `<td><strong>${name}</strong></td><td>${dgw!=null?`<span class="badge amber">${(dgw*100).toFixed(1)}%</span>`:'<span class="muted">—</span>'}</td>`;
-      books.forEach(b => { const v=row[`p${n}_${b}`]; html+=`<td class="mono">${v!=null?fmtOdds(v,fmt):'<span class="muted">—</span>'}</td>`; });
+      const dg   = row.odds?.datagolf?.[`p${n}`];
+      html += `<td><strong>${name}</strong></td>`;
+      html += `<td>${dg ? `<span class="badge amber">${dg}</span>` : '<span class="muted">—</span>'}</td>`;
+      books.forEach(b => {
+        const v = row.odds?.[b]?.[`p${n}`];
+        html += `<td class="mono">${v||'<span class="muted">—</span>'}</td>`;
+      });
+      if (n < nP) html += `<td style="border-right:1px solid #2a2a2a"></td>`;
     }
-    html += '</tr>';
+    html += `<td class="muted" style="font-size:11px">${row.ties||'—'}</td></tr>`;
   });
+
   html += '</tbody></table></div></div>';
   document.getElementById('tab-'+tabId).innerHTML = html;
 }
 
+// ─── FIELD ────────────────────────────────────────────────────────────────────
+// /field-updates — optional: tour
+// teetimes is array of objects with round_num, teetime, start_hole, wave
 async function doField(tour) {
   spin('tab-field');
   const d = await apiFetch('field-updates', { tour });
   document.getElementById('raw-field').textContent = JSON.stringify(d, null, 2);
-  const players = d.field || d.players || [];
-  if (!players.length) { showErr('tab-field', 'No field data returned.'); return; }
-  let html = infoCards(d);
-  html += mkCards([['Event', d.event_name||'—'],['Field Size', players.length, 'green'],['Course', d.course||'—'],['Updated', d.last_updated||'—']]);
-  html += buildTable(players, 'field-tbl', 'Field / Tee Times', `${players.length} players · tee times expand per round`);
+
+  const players = d.field || [];
+  if (!players.length) { showErr('tab-field','No field data returned.'); return; }
+
+  let html = mkCards([
+    ['Event',      d.event_name   || '—'],
+    ['Course',     d.course_name  || '—'],
+    ['Round',      d.current_round|| '—'],
+    ['Field Size', players.length, 'green'],
+    ['Updated',    d.last_updated || '—'],
+  ]);
+
+  html += `<div class="tbl-wrap"><div class="tbl-head">
+    <span class="tbl-title">Field / Tee Times</span>
+    <span class="tbl-meta">${players.length} players · ${d.date_start||''} → ${d.date_end||''}</span>
+  </div><div class="tbl-scroll"><table id="field-tbl"><thead><tr>
+    <th>#</th><th>Player</th><th>Country</th><th>DG Rank</th><th>OWGR</th>
+    <th>Tour Rank</th><th>AM</th>
+    <th>R1 Tee Time</th><th>R2 Tee Time</th><th>R3 Tee Time</th><th>R4 Tee Time</th>
+  </tr></thead><tbody>`;
+
+  players.forEach((p, i) => {
+    const tees = {};
+    (p.teetimes||[]).forEach(t => { tees[t.round_num] = t; });
+    function teecell(r) {
+      const t = tees[r]; if (!t) return '<span class="muted">—</span>';
+      const time = t.teetime ? t.teetime.split(' ')[1] : '—';
+      const hole = t.start_hole ? `H${t.start_hole}` : '';
+      const wc = t.wave === 'early' ? '#60a5fa' : '#f97316';
+      return `<span class="mono">${time}</span> <span style="font-size:10px;color:#555">${hole}</span> <span style="font-size:10px;color:${wc}">${t.wave||''}</span>`;
+    }
+    html += `<tr>
+      <td class="muted mono">${i+1}</td>
+      <td><strong>${p.player_name||'—'}</strong></td>
+      <td class="muted">${p.country||'—'}</td>
+      <td class="mono">${p.dg_rank ?? '<span class="muted">—</span>'}</td>
+      <td class="mono">${p.owgr_rank ?? '<span class="muted">—</span>'}</td>
+      <td class="mono">${p.tour_rank ?? '<span class="muted">—</span>'}</td>
+      <td>${p.am ? '<span class="badge green">AM</span>' : ''}</td>
+      <td>${teecell(1)}</td><td>${teecell(2)}</td><td>${teecell(3)}</td><td>${teecell(4)}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div></div>';
   document.getElementById('tab-field').innerHTML = withSearch('field-s','field-tbl', html);
-  document.getElementById('field-s').addEventListener('input', function() { filterTbl('field-tbl', this.value); });
+  document.getElementById('field-s').addEventListener('input', function(){ filterTbl('field-tbl',this.value); });
 }
 
+// ─── PRE-TOURNAMENT ───────────────────────────────────────────────────────────
+// /preds/pre-tournament — data in d.baseline and d.baseline_history_fit arrays
+// odds are strings like "+844", not numbers
 async function doPreTournament(tour, fmt) {
   spin('tab-pre-tournament');
   const d = await apiFetch('pre-tournament', { tour, odds_format: fmt, dead_heat: 'yes' });
   document.getElementById('raw-pre-tournament').textContent = JSON.stringify(d, null, 2);
-  const players = d.predictions || d.players || [];
-  if (!players.length) { showErr('tab-pre-tournament', 'No predictions returned.'); return; }
-  const probKeys = Object.keys(players[0]).filter(k => { const v=players[0][k]; return typeof v==='number'&&v>0&&v<=1&&k!=='dg_id'; });
-  let html = infoCards(d);
-  html += mkCards([['Event', d.event_name||'—'],['Players', players.length, 'green'],['Updated', d.last_updated||'—']]);
-  const keys = Object.keys(players[0]);
-  html += `<div class="tbl-wrap"><div class="tbl-head"><span class="tbl-title">Pre-Tournament Predictions</span><span class="tbl-meta">${players.length} players · amber = probability columns</span></div><div class="tbl-scroll"><table id="pred-tbl"><thead><tr>`;
-  keys.forEach(k => html += `<th>${k}</th>`);
-  html += '</tr></thead><tbody>';
-  players.forEach(p => {
-    html += '<tr>';
-    keys.forEach(k => {
-      const v = p[k];
-      html += probKeys.includes(k) && v != null
-        ? `<td><span class="badge amber">${(v*100).toFixed(1)}%</span></td>`
-        : `<td>${renderValue(v)}</td>`;
-    });
-    html += '</tr>';
+
+  const baseline = d.baseline || [];
+  const histFit  = d.baseline_history_fit || [];
+  if (!baseline.length && !histFit.length) { showErr('tab-pre-tournament','No prediction data returned.'); return; }
+
+  const histMap = {};
+  histFit.forEach(p => { histMap[p.dg_id] = p; });
+
+  let html = mkCards([
+    ['Event',      d.event_name   || '—'],
+    ['Players',    baseline.length, 'green'],
+    ['Models',     (d.models_available||[]).join(', ')],
+    ['Dead Heats', d.dead_heats   || '—'],
+    ['Updated',    d.last_updated || '—'],
+  ]);
+
+  html += `<div class="tbl-wrap"><div class="tbl-head">
+    <span class="tbl-title">Pre-Tournament Predictions</span>
+    <span class="tbl-meta">${baseline.length} players · baseline vs baseline+history fit · blue = favourite</span>
+  </div><div class="tbl-scroll"><table id="pred-tbl"><thead>
+  <tr>
+    <th>#</th><th>Player</th><th>Country</th><th>AM</th>
+    <th colspan="5" style="text-align:center;border-left:1px solid #2a2a2a">Baseline Model</th>
+    <th colspan="5" style="text-align:center;border-left:1px solid #2a2a2a">Baseline + History Fit</th>
+  </tr>
+  <tr>
+    <th></th><th></th><th></th><th></th>
+    <th style="border-left:1px solid #2a2a2a">Win</th><th>Top 5</th><th>Top 10</th><th>Top 20</th><th>Make Cut</th>
+    <th style="border-left:1px solid #2a2a2a">Win</th><th>Top 5</th><th>Top 10</th><th>Top 20</th><th>Make Cut</th>
+  </tr></thead><tbody>`;
+
+  function cell(val, borderLeft) {
+    const style = borderLeft ? 'style="border-left:1px solid #2a2a2a"' : '';
+    if (!val) return `<td ${style} class="muted">—</td>`;
+    const n = parseInt(String(val).replace('+',''), 10);
+    const color = n < 0 ? 'color:#60a5fa' : '';
+    return `<td ${style}><span class="mono" style="${color}">${val}</span></td>`;
+  }
+
+  baseline.forEach((p, i) => {
+    const hf = histMap[p.dg_id] || {};
+    html += `<tr>
+      <td class="muted mono">${i+1}</td>
+      <td><strong>${p.player_name||'—'}</strong></td>
+      <td class="muted">${p.country||'—'}</td>
+      <td>${p.am ? '<span class="badge green">AM</span>' : ''}</td>
+      ${cell(p.win, true)}${cell(p.top_5)}${cell(p.top_10)}${cell(p.top_20)}${cell(p.make_cut)}
+      ${cell(hf.win, true)}${cell(hf.top_5)}${cell(hf.top_10)}${cell(hf.top_20)}${cell(hf.make_cut)}
+    </tr>`;
   });
+
   html += '</tbody></table></div></div>';
   document.getElementById('tab-pre-tournament').innerHTML = withSearch('pred-s','pred-tbl', html);
-  document.getElementById('pred-s').addEventListener('input', function() { filterTbl('pred-tbl', this.value); });
+  document.getElementById('pred-s').addEventListener('input', function(){ filterTbl('pred-tbl',this.value); });
 }
 
+// ─── LIVE MODEL ───────────────────────────────────────────────────────────────
+// /preds/in-play — data in d.data array, event info in d.info
+// R1/R2/R3/R4 are flat integer fields, win/top_5 etc are strings or null
 async function doLiveModel(tour, fmt) {
   spin('tab-live-model');
   const d = await apiFetch('live-model', { tour, odds_format: fmt, dead_heat: 'no' });
   document.getElementById('raw-live-model').textContent = JSON.stringify(d, null, 2);
-  const players = d.data || d.live_odds || d.odds || d.players || d.predictions || [];
+
+  const players = d.data || [];
+  const info    = d.info || {};
+
   if (!players.length) {
-    document.getElementById('tab-live-model').innerHTML = infoCards(d) + '<div class="state-box">No live tournament in progress, or no live data available right now.</div>';
+    document.getElementById('tab-live-model').innerHTML =
+      '<div class="state-box">No live tournament in progress, or no live data available right now.</div>';
     return;
   }
-  let html = infoCards(d);
-  html += mkCards([['Event', d.event_name||'—'],['Players', players.length, 'green'],['Round', d.current_round||d.last_round||'—'],['Updated', d.last_updated||'—']]);
-  html += buildTable(players, 'live-tbl', 'Live Model', `${players.length} players`);
+
+  let html = mkCards([
+    ['Event',   info.event_name    || '—'],
+    ['Round',   info.current_round || '—'],
+    ['Players', players.length, 'green'],
+    ['Updated', info.last_update   || '—'],
+  ]);
+
+  html += `<div class="tbl-wrap"><div class="tbl-head">
+    <span class="tbl-title">Live Model — Round ${info.current_round||''}</span>
+    <span class="tbl-meta">${players.length} players · green = under par · red = over par</span>
+  </div><div class="tbl-scroll"><table id="live-tbl"><thead><tr>
+    <th>Pos</th><th>Player</th><th>Country</th>
+    <th>Score</th><th>Today</th><th>Thru</th>
+    <th>R1</th><th>R2</th><th>R3</th><th>R4</th>
+    <th>Win</th><th>Top 5</th><th>Top 10</th><th>Top 20</th><th>Make Cut</th>
+  </tr></thead><tbody>`;
+
+  const sorted = [...players].sort((a,b) => {
+    const aOut = ['CUT','WD'].includes(a.current_pos);
+    const bOut = ['CUT','WD'].includes(b.current_pos);
+    if (aOut && !bOut) return 1;
+    if (!aOut && bOut) return -1;
+    return (a.current_score??999) - (b.current_score??999);
+  });
+
+  function scoreColor(v) {
+    if (v == null) return '<span class="muted">—</span>';
+    if (v < 0) return `<span style="color:#4ade80" class="mono">${v}</span>`;
+    if (v > 0) return `<span style="color:#f87171" class="mono">+${v}</span>`;
+    return `<span class="mono">E</span>`;
+  }
+  function roundScore(v) {
+    if (v == null) return '<span class="muted">—</span>';
+    return `<span class="mono">${v}</span>`;
+  }
+  function oddsCell(v) {
+    if (v == null || v === 'n/a') return '<span class="muted">—</span>';
+    return `<span class="badge amber">${v}</span>`;
+  }
+
+  sorted.forEach(p => {
+    const isCut = p.current_pos === 'CUT';
+    const isWD  = p.current_pos === 'WD';
+    const rowStyle = (isCut||isWD) ? 'style="opacity:0.45"' : '';
+    const isLead = p.current_pos && p.current_pos.includes('1') && !p.current_pos.includes('10') && !p.current_pos.includes('11') && !p.current_pos.includes('12') && !p.current_pos.includes('13') && !p.current_pos.includes('21');
+    const posStyle = (isCut||isWD) ? 'style="color:#f87171"' : isLead ? 'style="color:#4ade80;font-weight:600"' : '';
+
+    html += `<tr ${rowStyle}>
+      <td><span class="mono" ${posStyle}>${p.current_pos||'—'}</span></td>
+      <td><strong>${p.player_name||'—'}</strong></td>
+      <td class="muted">${p.country||'—'}</td>
+      <td>${scoreColor(p.current_score)}</td>
+      <td>${scoreColor(p.today)}</td>
+      <td class="mono">${p.thru > 0 ? p.thru : (isCut||isWD ? '' : 'F')}</td>
+      <td>${roundScore(p.R1)}</td><td>${roundScore(p.R2)}</td>
+      <td>${roundScore(p.R3)}</td><td>${roundScore(p.R4)}</td>
+      <td>${oddsCell(p.win)}</td><td>${oddsCell(p.top_5)}</td>
+      <td>${oddsCell(p.top_10)}</td><td>${oddsCell(p.top_20)}</td>
+      <td>${oddsCell(p.make_cut)}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div></div>';
   document.getElementById('tab-live-model').innerHTML = withSearch('live-s','live-tbl', html);
-  document.getElementById('live-s').addEventListener('input', function() { filterTbl('live-tbl', this.value); });
+  document.getElementById('live-s').addEventListener('input', function(){ filterTbl('live-tbl',this.value); });
 }
 
+// ─── DG RANKINGS ──────────────────────────────────────────────────────────────
+// /preds/get-dg-rankings — d.rankings array, dg_skill_estimate is a float
 async function doRankings() {
   spin('tab-rankings');
   const d = await apiFetch('dg-rankings');
   document.getElementById('raw-rankings').textContent = JSON.stringify(d, null, 2);
-  const players = d.rankings || d.players || [];
-  if (!players.length) { showErr('tab-rankings', 'No rankings data returned.'); return; }
-  let html = mkCards([['Players Ranked', players.length, 'green'],['Updated', d.last_updated||'—']]);
-  html += buildTable(players, 'rank-tbl', 'DataGolf Rankings', `top ${players.length} players`);
+
+  const players = d.rankings || [];
+  if (!players.length) { showErr('tab-rankings','No rankings data returned.'); return; }
+
+  let html = mkCards([
+    ['Players Ranked', players.length, 'green'],
+    ['Updated', d.last_updated || '—'],
+    ['Note', d.notes || '—'],
+  ]);
+
+  html += `<div class="tbl-wrap"><div class="tbl-head">
+    <span class="tbl-title">DataGolf Rankings</span>
+    <span class="tbl-meta">${players.length} players · skill estimate: green >1 (elite), amber 0-1, red negative</span>
+  </div><div class="tbl-scroll"><table id="rank-tbl"><thead><tr>
+    <th>DG Rank</th><th>Player</th><th>Country</th>
+    <th>Primary Tour</th><th>OWGR</th><th>DG Skill Estimate</th><th>AM</th>
+  </tr></thead><tbody>`;
+
+  players.forEach(p => {
+    const skill = typeof p.dg_skill_estimate === 'number' ? p.dg_skill_estimate.toFixed(3) : '—';
+    const skillColor = p.dg_skill_estimate > 1 ? '#4ade80' : p.dg_skill_estimate > 0 ? '#fbbf24' : '#f87171';
+    const owgr = p.owgr_rank === 501 ? '501+' : (p.owgr_rank||'—');
+    html += `<tr>
+      <td class="mono">${p.datagolf_rank||'—'}</td>
+      <td><strong>${p.player_name||'—'}</strong></td>
+      <td class="muted">${p.country||'—'}</td>
+      <td><span class="badge gray">${p.primary_tour||'—'}</span></td>
+      <td class="mono">${owgr}</td>
+      <td><span class="mono" style="color:${skillColor}">${skill}</span></td>
+      <td>${p.am ? '<span class="badge green">AM</span>' : ''}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div></div>';
   document.getElementById('tab-rankings').innerHTML = withSearch('rank-s','rank-tbl', html);
-  document.getElementById('rank-s').addEventListener('input', function() { filterTbl('rank-tbl', this.value); });
+  document.getElementById('rank-s').addEventListener('input', function(){ filterTbl('rank-tbl',this.value); });
 }
 
+// ─── SCHEDULE ─────────────────────────────────────────────────────────────────
+// /get-schedule — d.schedule array, winner string "Name (dg_id)" or "TBD"
+// team events: "Name1 (id1);Name2 (id2)"
 async function doSchedule(tour) {
   spin('tab-schedule');
   const d = await apiFetch('schedule', { tour, season: 2026 });
   document.getElementById('raw-schedule').textContent = JSON.stringify(d, null, 2);
-  const events = d.schedule || d.events || d.tournaments || [];
-  if (!events.length) { showErr('tab-schedule', 'No schedule data returned.'); return; }
-  let html = mkCards([['Tour', tour.toUpperCase()],['Season','2026'],['Events', events.length, 'green']]);
-  html += buildTable(events, 'sched-tbl', '2026 Tour Schedule', `${events.length} events`);
+
+  const events = d.schedule || [];
+  if (!events.length) { showErr('tab-schedule','No schedule data returned.'); return; }
+
+  const completed = events.filter(e => e.status === 'completed').length;
+  const upcoming  = events.filter(e => e.status === 'upcoming').length;
+
+  let html = mkCards([
+    ['Tour',      tour.toUpperCase()],
+    ['Season',    '2026'],
+    ['Total',     events.length, 'green'],
+    ['Completed', completed],
+    ['Upcoming',  upcoming, 'amber'],
+  ]);
+
+  html += `<div class="tbl-wrap"><div class="tbl-head">
+    <span class="tbl-title">2026 Schedule</span>
+    <span class="tbl-meta">${events.length} events · ${completed} completed · ${upcoming} upcoming</span>
+  </div><div class="tbl-scroll"><table id="sched-tbl"><thead><tr>
+    <th>#</th><th>Event</th><th>Course</th><th>Location</th>
+    <th>Date</th><th>Status</th><th>Winner</th>
+  </tr></thead><tbody>`;
+
+  events.forEach((e, i) => {
+    const isCompleted = e.status === 'completed';
+    const isTBD = !e.winner || e.winner === 'TBD';
+    const winnerClean = isTBD ? '' : e.winner.replace(/\s*\(\d+\)/g, '');
+    const winnerDisplay = winnerClean
+      ? winnerClean.split(';').map(w => `<span>${w.trim()}</span>`).join('<br>')
+      : '';
+    const statusBadge = isCompleted
+      ? '<span class="badge gray">done</span>'
+      : '<span class="badge amber">upcoming</span>';
+    const rowStyle = isCompleted ? '' : 'style="opacity:0.7"';
+
+    html += `<tr ${rowStyle}>
+      <td class="muted mono">${i+1}</td>
+      <td><strong>${e.event_name||'—'}</strong></td>
+      <td style="font-size:12px;color:#666;max-width:200px;white-space:normal">${e.course||'—'}</td>
+      <td class="muted" style="font-size:12px">${e.location||'—'}</td>
+      <td class="mono" style="font-size:12px">${e.start_date||'—'}</td>
+      <td>${statusBadge}</td>
+      <td style="font-size:12px">${winnerDisplay||'<span class="muted">TBD</span>'}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div></div>';
   document.getElementById('tab-schedule').innerHTML = withSearch('sched-s','sched-tbl', html);
-  document.getElementById('sched-s').addEventListener('input', function() { filterTbl('sched-tbl', this.value); });
+  document.getElementById('sched-s').addEventListener('input', function(){ filterTbl('sched-tbl',this.value); });
 }
 
+// ─── Auto refresh ─────────────────────────────────────────────────────────────
 document.getElementById('auto-chk').addEventListener('change', function() {
   clearInterval(autoTimer); clearInterval(cdTimer);
   document.getElementById('countdown').textContent = '';
@@ -513,12 +733,18 @@ document.getElementById('auto-chk').addEventListener('change', function() {
 });
 function startAuto() {
   cdSecs = AUTO_SEC;
-  cdTimer = setInterval(() => { document.getElementById('countdown').textContent = `(${--cdSecs}s)`; if (cdSecs<=0) cdSecs=AUTO_SEC; }, 1000);
-  autoTimer = setInterval(() => { loadAll(); cdSecs=AUTO_SEC; }, AUTO_SEC*1000);
+  cdTimer = setInterval(() => {
+    document.getElementById('countdown').textContent = `(${--cdSecs}s)`;
+    if (cdSecs <= 0) cdSecs = AUTO_SEC;
+  }, 1000);
+  autoTimer = setInterval(() => { loadAll(); cdSecs = AUTO_SEC; }, AUTO_SEC * 1000);
 }
 
-['outrights','matchups','round-matchups','threeball','field','pre-tournament','live-model','rankings','schedule'].forEach(t => {
-  document.getElementById('tab-'+t).innerHTML = '<div class="state-box">Click ▶ Load Data to fetch.</div>';
+// Init
+['outrights','matchups','round-matchups','threeball','field',
+ 'pre-tournament','live-model','rankings','schedule'].forEach(t => {
+  document.getElementById('tab-'+t).innerHTML =
+    '<div class="state-box">Click ▶ Load Data to fetch.</div>';
 });
 </script>
 </body>
