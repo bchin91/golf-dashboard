@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DataGolf Dashboard</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #e0e0e0; font-size: 14px; }
+
+header {
+  background: #181818; border-bottom: 1px solid #2a2a2a;
+  padding: 12px 20px; display: flex; align-items: center; gap: 12px;
+}
+header h1 { font-size: 17px; font-weight: 600; color: #fff; }
+.live-dot { width:8px;height:8px;border-radius:50%;background:#555;flex-shrink:0; }
+.live-dot.on { background:#4ade80;box-shadow:0 0 6px #4ade80;animation:pulse 2s infinite; }
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+#status { font-size:12px;color:#666; }
+#status.ok  { color:#4ade80; }
+#status.err { color:#f87171; }
+#status.loading { color:#fbbf24; }
+
+nav { background:#141414;border-bottom:1px solid #222;display:flex;overflow-x:auto; }
+nav button {
+  padding:10px 16px;border:none;background:none;color:#666;
+  font-size:13px;cursor:pointer;white-space:nowrap;
+  border-bottom:2px solid transparent;font-family:inherit;
+}
+nav button:hover { color:#ccc; }
+nav button.active { color:#4ade80;border-bottom-color:#4ade80; }
+
+.toolbar {
+  background:#141414;border-bottom:1px solid #222;
+  padding:9px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+}
+.toolbar label { font-size:12px;color:#777; }
+select {
+  padding:5px 8px;background:#222;border:1px solid #333;
+  border-radius:5px;color:#e0e0e0;font-size:13px;font-family:inherit;outline:none;cursor:pointer;
+}
+select:focus { border-color:#4ade80; }
+.btn { padding:6px 14px;border-radius:5px;border:none;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer; }
+.btn-go { background:#4ade80;color:#0f0f0f; }
+.btn-go:hover { background:#22c55e; }
+.btn-go:disabled { background:#333;color:#666;cursor:not-allowed; }
+.sep { color:#333;font-size:18px; }
+.auto-wrap { margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:#666; }
+input[type=checkbox]{cursor:pointer;accent-color:#4ade80;}
+#countdown{font-family:monospace;color:#fbbf24;}
+
+.content { padding:16px 20px; }
+.page { display:none; }
+.page.active { display:block; }
+
+.cards { display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px; }
+.card { background:#1a1a1a;border:1px solid #2a2a2a;border-radius:7px;padding:10px 14px;min-width:120px; }
+.card-label { font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#555;margin-bottom:3px; }
+.card-value { font-size:15px;font-weight:600;color:#e0e0e0; }
+.card-value.green { color:#4ade80; }
+.card-value.amber { color:#fbbf24; }
+
+.tbl-wrap { background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;overflow:hidden;margin-bottom:14px; }
+.tbl-head { padding:9px 14px;border-bottom:1px solid #222;background:#1e1e1e;display:flex;align-items:center;justify-content:space-between; }
+.tbl-title { font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#666; }
+.tbl-meta  { font-size:11px;color:#444; }
+.tbl-scroll { overflow-x:auto; }
+
+table { width:100%;border-collapse:collapse; }
+thead th {
+  padding:7px 11px;text-align:left;font-size:11px;color:#555;
+  background:#1c1c1c;border-bottom:1px solid #222;
+  white-space:nowrap;font-weight:500;text-transform:uppercase;letter-spacing:.4px;
+  position:sticky;top:0;z-index:1;
+}
+tbody tr { border-bottom:1px solid #1c1c1c; }
+tbody tr:hover { background:#1d1d1d; }
+tbody tr:last-child { border-bottom:none; }
+td { padding:7px 11px;font-size:13px;white-space:nowrap;vertical-align:middle; }
+
+.badge { padding:2px 7px;border-radius:4px;font-size:12px;font-family:monospace; }
+.badge.green { background:rgba(74,222,128,.13);color:#4ade80; }
+.badge.amber { background:rgba(251,191,36,.12);color:#fbbf24; }
+.badge.blue  { background:rgba(96,165,250,.12);color:#60a5fa; }
+.badge.gray  { background:#222;color:#666; }
+.mono { font-family:monospace;font-size:12px; }
+.muted { color:#555; }
+.pos { color:#4ade80; }
+.neg { color:#f87171; }
+
+.search-wrap { margin-bottom:10px; }
+.search-input {
+  padding:6px 10px;background:#1a1a1a;border:1px solid #2a2a2a;
+  border-radius:5px;color:#e0e0e0;font-size:13px;font-family:inherit;outline:none;width:240px;
+}
+.search-input:focus { border-color:#4ade80; }
+
+.state-box { text-align:center;padding:44px 20px;color:#444;font-size:13px; }
+.spinner { width:26px;height:26px;border:2px solid #252525;border-top-color:#4ade80;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 10px; }
+@keyframes spin{to{transform:rotate(360deg)}}
+.err-box { background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.18);border-radius:7px;padding:12px 16px;color:#f87171;font-size:13px;margin-bottom:12px;font-family:monospace; }
+
+.raw-section { margin-bottom:12px; }
+.raw-section summary { cursor:pointer;padding:9px 14px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:7px;font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.5px;list-style:none; }
+.raw-section summary::before { content:'▶ ';font-size:10px; }
+.raw-section[open] summary { border-radius:7px 7px 0 0;border-bottom-color:#111; }
+.raw-section[open] summary::before { content:'▼ '; }
+pre { background:#0a0a0a;border:1px solid #1e1e1e;border-top:none;border-radius:0 0 7px 7px;padding:12px;font-size:11.5px;font-family:monospace;overflow-x:auto;max-height:460px;overflow-y:auto;color:#6dbf6d;white-space:pre-wrap;word-break:break-all;line-height:1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⛳ DataGolf Dashboard</h1>
+  <div class="live-dot" id="dot"></div>
+  <span id="status">Ready — click Load Data</span>
+</header>
+
+<nav>
+  <button class="active" onclick="switchTab('outrights',this)">Outrights</button>
+  <button onclick="switchTab('matchups',this)">Tournament Matchups</button>
+  <button onclick="switchTab('round-matchups',this)">Round Matchups</button>
+  <button onclick="switchTab('threeball',this)">3-Balls</button>
+  <button onclick="switchTab('field',this)">Field</button>
+  <button onclick="switchTab('pre-tournament',this)">Pre-Tournament Model</button>
+  <button onclick="switchTab('live-model',this)">Live Model</button>
+  <button onclick="switchTab('rankings',this)">DG Rankings</button>
+  <button onclick="switchTab('schedule',this)">Schedule</button>
+  <button onclick="switchTab('raw',this)">Raw JSON</button>
+</nav>
+
+<div class="toolbar">
+  <label>Tour</label>
+  <select id="sel-tour">
+    <option value="pga">PGA Tour</option>
+    <option value="euro">DP World Tour</option>
+    <option value="kft">Korn Ferry</option>
+    <option value="opp">Opposite Field</option>
+    <option value="alt">LIV Golf</option>
+  </select>
+  <span class="sep">|</span>
+  <label>Odds</label>
+  <select id="sel-odds">
+    <option value="american">American</option>
+    <option value="decimal">Decimal</option>
+    <option value="percent">Implied %</option>
+  </select>
+  <span class="sep">|</span>
+  <label>Outright Market</label>
+  <select id="sel-market">
+    <option value="win">Win</option>
+    <option value="top_5">Top 5</option>
+    <option value="top_10">Top 10</option>
+    <option value="top_20">Top 20</option>
+    <option value="make_cut">Make Cut</option>
+    <option value="mc">Miss Cut</option>
+    <option value="frl">First Round Leader</option>
+  </select>
+  <button class="btn btn-go" id="load-btn" onclick="loadAll()">▶ Load Data</button>
+  <div class="auto-wrap">
+    <label><input type="checkbox" id="auto-chk"> Auto-refresh</label>
+    <span id="countdown"></span>
+  </div>
+</div>
+
+<div class="content">
+  <div id="tab-outrights"      class="page active"></div>
+  <div id="tab-matchups"       class="page"></div>
+  <div id="tab-round-matchups" class="page"></div>
+  <div id="tab-threeball"      class="page"></div>
+  <div id="tab-field"          class="page"></div>
+  <div id="tab-pre-tournament" class="page"></div>
+  <div id="tab-live-model"     class="page"></div>
+  <div id="tab-rankings"       class="page"></div>
+  <div id="tab-schedule"       class="page"></div>
+  <div id="tab-raw" class="page">
+    <details class="raw-section" open><summary>Outrights</summary><pre id="raw-outrights">—</pre></details>
+    <details class="raw-section"><summary>Tournament Matchups</summary><pre id="raw-matchups">—</pre></details>
+    <details class="raw-section"><summary>Round Matchups</summary><pre id="raw-round-matchups">—</pre></details>
+    <details class="raw-section"><summary>3-Balls</summary><pre id="raw-threeball">—</pre></details>
+    <details class="raw-section"><summary>Field</summary><pre id="raw-field">—</pre></details>
+    <details class="raw-section"><summary>Pre-Tournament Model</summary><pre id="raw-pre-tournament">—</pre></details>
+    <details class="raw-section"><summary>Live Model</summary><pre id="raw-live-model">—</pre></details>
+    <details class="raw-section"><summary>DG Rankings</summary><pre id="raw-rankings">—</pre></details>
+    <details class="raw-section"><summary>Schedule</summary><pre id="raw-schedule">—</pre></details>
+  </div>
+</div>
+
+<script>
+let currentTab = 'outrights';
+let autoTimer = null, cdTimer = null, cdSecs = 0;
+const AUTO_SEC = 60;
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  btn.classList.add('active');
+  currentTab = tab;
+}
+
+function setStatus(msg, cls) {
+  const el = document.getElementById('status');
+  el.textContent = msg; el.className = cls || '';
+  document.getElementById('dot').className = 'live-dot' + (cls === 'ok' ? ' on' : '');
+}
+
+function spin(id)   { document.getElementById(id).innerHTML = '<div class="state-box"><div class="spinner"></div>Loading…</div>'; }
+function err(id, m) { document.getElementById(id).innerHTML = `<div class="err-box">✗ ${m}</div>`; }
+
+function fmtOdds(v, fmt) {
+  if (v == null) return null;
+  if (fmt === 'american') return v > 0 ? `+${v}` : `${v}`;
+  if (fmt === 'decimal')  return parseFloat(v).toFixed(2);
+  if (fmt === 'percent')  return parseFloat(v).toFixed(1) + '%';
+  return v;
+}
+function probFmt(p, fmt) {
+  if (p == null) return '—';
+  if (fmt === 'percent') return (p*100).toFixed(1)+'%';
+  if (fmt === 'decimal') return (1/p).toFixed(2);
+  if (fmt === 'american') return p >= .5 ? '-'+Math.round(p/(1-p)*100) : '+'+Math.round((1-p)/p*100);
+  return (p*100).toFixed(1)+'%';
+}
+
+function bookCols(obj, prefix) {
+  const skip = new Set(['dg_id','country','win','datagolf_win','datagolf_baseline',
+    'datagolf_baseline_history_fit','player_name','p1_player_name','p2_player_name',
+    'p3_player_name','p1_datagolf_win','p2_datagolf_win','p3_datagolf_win','tie']);
+  return Object.keys(obj)
+    .filter(k => prefix ? k.startsWith(prefix) : true)
+    .filter(k => { const bare = prefix ? k.slice(prefix.length) : k; return !skip.has(bare) && !skip.has(k); })
+    .filter(k => typeof obj[k] === 'number')
+    .map(k => prefix ? k.slice(prefix.length) : k);
+}
+
+function infoCards(d) {
+  const items = [];
+  if (d.event_name)   items.push(['Event', d.event_name]);
+  if (d.course)       items.push(['Course', d.course]);
+  if (d.last_round   != null) items.push(['Round', d.last_round]);
+  if (d.last_updated) items.push(['Updated', d.last_updated]);
+  if (!items.length) return '';
+  return '<div class="cards">' + items.map(([l,v]) =>
+    `<div class="card"><div class="card-label">${l}</div><div class="card-value">${v}</div></div>`
+  ).join('') + '</div>';
+}
+
+function mkCards(items) {
+  return '<div class="cards">' + items.map(([l,v,c]) =>
+    `<div class="card"><div class="card-label">${l}</div><div class="card-value ${c||''}">${v}</div></div>`
+  ).join('') + '</div>';
+}
+
+function allKeysTable(rows, id, title, meta) {
+  if (!rows || !rows.length) return `<div class="err-box">No data rows returned.</div>`;
+  const keys = Object.keys(rows[0]);
+  let h = `<div class="tbl-wrap"><div class="tbl-head"><span class="tbl-title">${title}</span><span class="tbl-meta">${meta || rows.length+' rows'}</span></div>
+  <div class="tbl-scroll"><table id="${id}"><thead><tr>`;
+  keys.forEach(k => h += `<th>${k}</th>`);
+  h += '</tr></thead><tbody>';
+  rows.forEach(r => {
+    h += '<tr>';
+    keys.forEach(k => {
+      const v = r[k];
+      h += `<td class="${typeof v==='number'?'mono':''}">${v != null ? v : '<span class="muted">—</span>'}</td>`;
+    });
+    h += '</tr>';
+  });
+  return h + '</tbody></table></div></div>';
+}
+
+function addSearch(inputId, tableId, html) {
+  return `<div class="search-wrap"><input class="search-input" id="${inputId}" placeholder="Search…"
+    oninput="filterTbl('${tableId}',this.value)"></div>` + html;
+}
+
+function filterTbl(tid, q) {
+  const t = document.getElementById(tid); if (!t) return;
+  q = q.toLowerCase();
+  t.querySelectorAll('tbody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+async function apiFetch(endpoint, params = {}) {
+  const qs = new URLSearchParams(params);
+  const res = await fetch(`/api/${endpoint}?${qs}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.detail?.message || json.error || `HTTP ${res.status}`);
+  return json;
+}
+
+async function loadAll() {
+  const tour = document.getElementById('sel-tour').value;
+  const fmt  = document.getElementById('sel-odds').value;
+  const mkt  = document.getElementById('sel-market').value;
+  const btn  = document.getElementById('load-btn');
+  btn.disabled = true; btn.textContent = 'Loading…';
+  setStatus('Fetching…', 'loading');
+
+  const jobs = [
+    loadOutrights(tour, mkt, fmt),
+    loadMatchups(tour, 'tournament_matchups', fmt),
+    loadMatchups(tour, 'round_matchups', fmt),
+    loadMatchups(tour, '3_balls', fmt),
+    loadField(tour),
+    loadPreTournament(tour, fmt),
+    loadLiveModel(tour, fmt),
+    loadRankings(),
+    loadSchedule(tour),
+  ];
+
+  const results = await Promise.allSettled(jobs);
+  const errs = results.filter(r => r.status === 'rejected').length;
+  setStatus(
+    `Updated ${new Date().toLocaleTimeString()}${errs ? ` · ${errs} endpoint(s) failed` : ''}`,
+    errs ? 'loading' : 'ok'
+  );
+  btn.disabled = false; btn.textContent = '▶ Load Data';
+}
+
+// ── OUTRIGHTS ─────────────────────────────────────────────────────────────────
+async function loadOutrights(tour, market, fmt) {
+  spin('tab-outrights');
+  const d = await apiFetch('outrights', { tour, market, odds_format: fmt });
+  document.getElementById('raw-outrights').textContent = JSON.stringify(d, null, 2);
+
+  const players = d.odds || [];
+  if (!players.length) { err('tab-outrights', 'No outright odds returned.'); return; }
+
+  const books = bookCols(players[0]);
+  let html = infoCards(d);
+  html += mkCards([['Players', players.length, 'green'], ['Books', books.length], ['Market', market], ['Odds Format', fmt]]);
+
+  html += `<div class="tbl-wrap"><div class="tbl-head">
+    <span class="tbl-title">Outright Odds — ${market}</span>
+    <span class="tbl-meta">books: ${books.join(', ')} · <span style="color:#4ade80">green = best price</span></span>
+  </div><div class="tbl-scroll"><table id="out-tbl"><thead><tr>
+    <th>#</th><th>Player</th><th>Country</th><th>DG Model</th>`;
+  books.forEach(b => html += `<th>${b}</th>`);
+  html += `<th>Edge</th></tr></thead><tbody>`;
+
+  players.forEach((p, i) => {
+    const model = p.datagolf_baseline_history_fit ?? p.datagolf_baseline;
+    let bestBook = null, bestVal = null;
+    books.forEach(b => {
+      const v = p[b]; if (v == null) return;
+      if (bestVal === null || (fmt === 'percent' ? v < bestVal : v > bestVal))
+        { bestVal = v; bestBook = b; }
+    });
+    let edgeHtml = '<span class="muted">—</span>';
+    if (model != null && bestVal != null) {
+      let imp = fmt === 'percent' ? bestVal/100 : fmt === 'decimal' ? 1/bestVal
+              : bestVal > 0 ? 100/(bestVal+100) : Math.abs(bestVal)/(Math.abs(bestVal)+100);
+      const e = ((model - imp)*100).toFixed(1);
+      edgeHtml = e > 0 ? `<span class="badge green">+${e}%</span>` : `<span class="mono muted">${e}%</span>`;
+    }
+    html += `<tr>
+      <td class="muted mono">${i+1}</td>
+      <td><strong>${p.player_name||'—'}</strong></td>
+      <td class="muted">${p.country||'—'}</td>
+      <td>${model != null ? `<span class="badge amber">${probFmt(model,fmt)}</span>` : '<span class="muted">—</span>'}</td>`;
+    books.forEach(b => {
+      const v = p[b];
+      if (v == null) { html += `<td class="muted">—</td>`; return; }
+      html += b === bestBook
+        ? `<td><span class="badge green">${fmtOdds(v,fmt)}</span></td>`
+        : `<td class="mono">${fmtOdds(v,fmt)}</td>`;
+    });
+    html += `<td>${edgeHtml}</td></tr>`;
+  });
+  html += '</tbody></table></div></div>';
+  document.getElementById('tab-outrights').innerHTML = addSearch('out-s','out-tbl', html);
+  document.getElementById('out-s').addEventListener('input', function(){ filterTbl('out-tbl', this.value); });
+}
+
+// ── MATCHUPS / ROUND MATCHUPS / 3-BALLS ───────────────────────────────────────
+async function loadMatchups(tour, market, fmt) {
+  const tabId = market === 'tournament_matchups' ? 'matchups'
+              : market === 'round_matchups'       ? 'round-matchups'
+              : 'threeball';
+  spin('tab-' + tabId);
+  const d = await apiFetch('matchups', { tour, market, odds_format: fmt });
+  document.getElementById('raw-' + tabId).textContent = JSON.stringify(d, null, 2);
+
+  const rows = d.matchups || [];
+  if (!rows.length) { err('tab-'+tabId, `No ${market} data returned.`); return; }
+
+  const is3ball = market === '3_balls';
+  const nP = is3ball ? 3 : 2;
+  const books = bookCols(rows[0], 'p1_');
+
+  let html = infoCards(d);
+  html += mkCards([['Event', d.event_name||'—'], ['Rows', rows.length, 'green'], ['Books', books.length]]);
+  html += `<div class="tbl-wrap"><div class="tbl-head">
+    <span class="tbl-title">${market.replace(/_/g,' ')}</span>
+    <span class="tbl-meta">${rows.length} rows · books: ${books.join(', ')}</span>
+  </div><div class="tbl-scroll"><table id="${tabId}-tbl"><thead><tr>`;
+  for (let n=1; n<=nP; n++) {
+    html += `<th>Player ${n}</th><th>DG Win%</th>`;
+    books.forEach(b => html += `<th>${b}</th>`);
+  }
+  html += '</tr></thead><tbody>';
+  rows.forEach(row => {
+    html += '<tr>';
+    for (let n=1; n<=nP; n++) {
+      const name = row[`p${n}_player_name`] || '—';
+      const dgw  = row[`p${n}_datagolf_win`];
+      html += `<td><strong>${name}</strong></td>`;
+      html += `<td>${dgw!=null?`<span class="badge amber">${(dgw*100).toFixed(1)}%</span>`:'<span class="muted">—</span>'}</td>`;
+      books.forEach(b => {
+        const v = row[`p${n}_${b}`];
+        html += `<td class="mono">${v!=null ? fmtOdds(v,fmt) : '<span class="muted">—</span>'}</td>`;
+      });
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  document.getElementById('tab-'+tabId).innerHTML = html;
+}
+
+// ── FIELD ─────────────────────────────────────────────────────────────────────
+async function loadField(tour) {
+  spin('tab-field');
+  const d = await apiFetch('field-updates', { tour });
+  document.getElementById('raw-field').textContent = JSON.stringify(d, null, 2);
+  const players = d.field || d.players || [];
+  if (!players.length) { err('tab-field', 'No field data returned.'); return; }
+  let html = infoCards(d);
+  html += mkCards([['Event', d.event_name||'—'], ['Field Size', players.length, 'green'], ['Course', d.course||'—']]);
+  html += allKeysTable(players, 'field-tbl', 'Field / Tee Times', `${players.length} players`);
+  document.getElementById('tab-field').innerHTML = addSearch('field-s','field-tbl', html);
+  document.getElementById('field-s').addEventListener('input', function(){ filterTbl('field-tbl', this.value); });
+}
+
+// ── PRE-TOURNAMENT ────────────────────────────────────────────────────────────
+async function loadPreTournament(tour, fmt) {
+  spin('tab-pre-tournament');
+  const d = await apiFetch('pre-tournament', { tour, odds_format: fmt, dead_heat: 'yes' });
+  document.getElementById('raw-pre-tournament').textContent = JSON.stringify(d, null, 2);
+  const players = d.predictions || d.players || [];
+  if (!players.length) { err('tab-pre-tournament', 'No predictions returned.'); return; }
+  let html = infoCards(d);
+  html += mkCards([['Event', d.event_name||'—'], ['Players', players.length, 'green']]);
+  html += allKeysTable(players, 'pred-tbl', 'Pre-Tournament Predictions', `${players.length} players`);
+  document.getElementById('tab-pre-tournament').innerHTML = addSearch('pred-s','pred-tbl', html);
+  document.getElementById('pred-s').addEventListener('input', function(){ filterTbl('pred-tbl', this.value); });
+}
+
+// ── LIVE MODEL ────────────────────────────────────────────────────────────────
+async function loadLiveModel(tour, fmt) {
+  spin('tab-live-model');
+  const d = await apiFetch('live-model', { tour, odds_format: fmt, dead_heat: 'no' });
+  document.getElementById('raw-live-model').textContent = JSON.stringify(d, null, 2);
+  const players = d.data || d.live_odds || d.players || d.predictions || [];
+  if (!players.length) {
+    document.getElementById('tab-live-model').innerHTML = infoCards(d) +
+      '<div class="state-box">No live tournament in progress.</div>';
+    return;
+  }
+  let html = infoCards(d);
+  html += mkCards([['Event', d.event_name||'—'], ['Players', players.length, 'green'], ['Round', d.current_round||'—']]);
+  html += allKeysTable(players, 'live-tbl', 'Live Model', `${players.length} players`);
+  document.getElementById('tab-live-model').innerHTML = addSearch('live-s','live-tbl', html);
+  document.getElementById('live-s').addEventListener('input', function(){ filterTbl('live-tbl', this.value); });
+}
+
+// ── RANKINGS ──────────────────────────────────────────────────────────────────
+async function loadRankings() {
+  spin('tab-rankings');
+  const d = await apiFetch('dg-rankings');
+  document.getElementById('raw-rankings').textContent = JSON.stringify(d, null, 2);
+  const players = d.rankings || d.players || [];
+  if (!players.length) { err('tab-rankings', 'No rankings data returned.'); return; }
+  let html = mkCards([['Players', players.length, 'green'], ['Updated', d.last_updated||'—']]);
+  html += allKeysTable(players, 'rank-tbl', 'DataGolf Rankings', `top ${players.length}`);
+  document.getElementById('tab-rankings').innerHTML = addSearch('rank-s','rank-tbl', html);
+  document.getElementById('rank-s').addEventListener('input', function(){ filterTbl('rank-tbl', this.value); });
+}
+
+// ── SCHEDULE ──────────────────────────────────────────────────────────────────
+async function loadSchedule(tour) {
+  spin('tab-schedule');
+  const d = await apiFetch('schedule', { tour, season: 2026 });
+  document.getElementById('raw-schedule').textContent = JSON.stringify(d, null, 2);
+  const events = d.schedule || d.events || d.tournaments || [];
+  if (!events.length) { err('tab-schedule', 'No schedule data returned.'); return; }
+  let html = mkCards([['Tour', tour.toUpperCase()], ['Events', events.length, 'green']]);
+  html += allKeysTable(events, 'sched-tbl', '2026 Schedule', `${events.length} events`);
+  document.getElementById('tab-schedule').innerHTML = addSearch('sched-s','sched-tbl', html);
+  document.getElementById('sched-s').addEventListener('input', function(){ filterTbl('sched-tbl', this.value); });
+}
+
+// ── AUTO REFRESH ──────────────────────────────────────────────────────────────
+document.getElementById('auto-chk').addEventListener('change', function() {
+  clearInterval(autoTimer); clearInterval(cdTimer);
+  document.getElementById('countdown').textContent = '';
+  if (this.checked) { loadAll(); startAuto(); }
+});
+function startAuto() {
+  cdSecs = AUTO_SEC;
+  cdTimer = setInterval(() => {
+    document.getElementById('countdown').textContent = `(${--cdSecs}s)`;
+    if (cdSecs <= 0) cdSecs = AUTO_SEC;
+  }, 1000);
+  autoTimer = setInterval(() => { loadAll(); cdSecs = AUTO_SEC; }, AUTO_SEC * 1000);
+}
+
+['outrights','matchups','round-matchups','threeball','field','pre-tournament','live-model','rankings','schedule'].forEach(t => {
+  document.getElementById('tab-'+t).innerHTML = '<div class="state-box">Click ▶ Load Data to fetch.</div>';
+});
+</script>
+</body>
+</html>
